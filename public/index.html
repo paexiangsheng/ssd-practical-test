@@ -8,11 +8,21 @@
   <body>
     <main>
       <h1>Secure Search</h1>
-      <form action="/search" method="post">
+      <p id="validationMessage" role="alert"></p>
+      <form id="searchForm" action="/search" method="post" novalidate>
         <label for="searchTerm">Search term</label>
-        <input id="searchTerm" name="searchTerm" type="text" required>
+        <input
+          id="searchTerm"
+          name="searchTerm"
+          type="text"
+          required
+          minlength="2"
+          maxlength="80"
+          autocomplete="off"
+        >
         <button type="submit">Search</button>
       </form>
     </main>
+    <script src="/validation.js"></script>
   </body>
 </html>
