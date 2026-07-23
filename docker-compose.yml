@@ -10,7 +10,10 @@ services:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
       - ./certs:/etc/nginx/certs:ro
     depends_on:
-      - app
+      app:
+        condition: service_healthy
+      certgen:
+        condition: service_completed_successfully
 
   app:
     build:
@@ -27,6 +30,16 @@ services:
     depends_on:
       database:
         condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3000/').then(response=>process.exit(response.ok?0:1)).catch(()=>process.exit(1))
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
   database:
     image: mysql:8.0
@@ -115,6 +128,9 @@ services:
     restart: "no"
     environment:
       SONAR_ADMIN_PASSWORD: "2400749@SIT.singaporetech.edu.sg"
+    user: "0"
+    volumes:
+      - sonar_token:/run/sonar-token
     depends_on:
       - sonarqube
     entrypoint:
@@ -132,34 +148,58 @@ services:
           http://sonarqube:9000/api/authentication/validate |
           grep -q '"valid":true'; then
           echo "SonarQube administrator password is already configured."
-          exit 0
+        else
+          curl --fail --silent --show-error \
+            --user admin:admin \
+            --request POST \
+            --data-urlencode "login=admin" \
+            --data-urlencode "previousPassword=admin" \
+            --data-urlencode "password=$${SONAR_ADMIN_PASSWORD}" \
+            http://sonarqube:9000/api/users/change_password
+          echo "SonarQube administrator password configured."
         fi
 
-        curl --fail --silent --show-error \
-          --user admin:admin \
+        curl --silent \
+          --user "admin:$${SONAR_ADMIN_PASSWORD}" \
           --request POST \
-          --data-urlencode "login=admin" \
-          --data-urlencode "previousPassword=admin" \
-          --data-urlencode "password=$${SONAR_ADMIN_PASSWORD}" \
-          http://sonarqube:9000/api/users/change_password
-        echo "SonarQube administrator password configured."
+          --data-urlencode "name=automatic-local-scan" \
+          http://sonarqube:9000/api/user_tokens/revoke >/dev/null || true
+
+        token_response="$$(curl --fail --silent --show-error \
+          --user "admin:$${SONAR_ADMIN_PASSWORD}" \
+          --request POST \
+          --data-urlencode "name=automatic-local-scan" \
+          --data-urlencode "type=GLOBAL_ANALYSIS_TOKEN" \
+          http://sonarqube:9000/api/user_tokens/generate)"
+        token="$$(printf '%s' "$${token_response}" |
+          sed -n 's/.*"token":"\([^"]*\)".*/\1/p')"
+        test -n "$${token}"
+        printf '%s' "$${token}" >/run/sonar-token/token
+        chmod 644 /run/sonar-token/token
+        echo "SonarQube analysis token generated."
 
   sonar-scanner:
     image: sonarsource/sonar-scanner-cli:latest
-    profiles:
-      - tools
     environment:
       SONAR_HOST_URL: http://sonarqube:9000
-      SONAR_TOKEN: "${SONAR_TOKEN:-}"
     volumes:
       - .:/usr/src
+      - sonar_token:/run/sonar-token:ro
     depends_on:
-      - sonarqube
+      sonarqube-init:
+        condition: service_completed_successfully
+    entrypoint:
+      - /bin/sh
+      - -c
+    command:
+      - |
+        export SONAR_TOKEN="$$(cat /run/sonar-token/token)"
+        exec sonar-scanner
 
   certgen:
     image: alpine:latest
-    profiles:
-      - tools
+    container_name: practical-certgen
+    restart: "no"
     volumes:
       - ./certs:/certs
     command:
@@ -186,3 +226,5 @@ volumes:
     name: practicaltest_sonarqube_logs
   sonarqube_database:
     name: practicaltest_sonarqube_database
+  sonar_token:
+    name: practicaltest_sonar_token

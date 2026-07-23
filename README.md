@@ -12,17 +12,15 @@ A small Node.js search application demonstrating:
 
 ## Start the stack
 
-Generate the self-signed development certificate once:
+After extracting the submission, build and start every service:
 
 ```powershell
-docker compose --profile tools run --rm certgen
+sudo docker-compose up
 ```
 
-Build and start the application:
-
-```powershell
-docker compose up -d --build
-```
+Docker Compose automatically generates the self-signed certificate, initializes
+the databases, configures SonarQube, and scans the source code. No preliminary
+commands are required.
 
 Open `https://127.0.0.1/`. A browser warning is expected because the
 development certificate is self-signed.
@@ -33,17 +31,17 @@ SonarQube may take a few minutes to finish its first startup. Open
 - Username: `admin`
 - Password: `2400749@SIT.singaporetech.edu.sg`
 
-The `sonarqube-init` container changes the default administrator password on
-the first startup and then exits successfully. This is expected.
+The `certgen`, `sonarqube-init`, and `sonar-scanner` containers perform
+one-time setup tasks and then show `Exited (0)`. This is expected and means
+their tasks completed successfully.
 
 ## Run a local SonarQube scan
 
-Create an analysis token in SonarQube, then run:
+The initial scan runs automatically. To perform another scan manually, create
+an analysis token in SonarQube, then run:
 
-```powershell
-$env:SONAR_TOKEN = "your-analysis-token"
-docker compose --profile tools run --rm sonar-scanner
-Remove-Item Env:SONAR_TOKEN
+```bash
+sudo docker-compose run --rm sonar-scanner
 ```
 
 Open `http://127.0.0.1:9000/dashboard?id=ssd-practical-test` to view the
