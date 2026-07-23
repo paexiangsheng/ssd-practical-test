@@ -36,6 +36,19 @@ SonarQube may take a few minutes to finish its first startup. Open
 The `sonarqube-init` container changes the default administrator password on
 the first startup and then exits successfully. This is expected.
 
+## Run a local SonarQube scan
+
+Create an analysis token in SonarQube, then run:
+
+```powershell
+$env:SONAR_TOKEN = "your-analysis-token"
+docker compose --profile tools run --rm sonar-scanner
+Remove-Item Env:SONAR_TOKEN
+```
+
+Open `http://127.0.0.1:9000/dashboard?id=ssd-practical-test` to view the
+analysis result.
+
 ## Run unit tests
 
 ```powershell

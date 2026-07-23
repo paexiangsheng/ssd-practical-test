@@ -2,3 +2,4 @@ node_modules/
 .env
 certs/server.key
 certs/server.crt
+.scannerwork/

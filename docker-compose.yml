@@ -144,6 +144,18 @@ services:
           http://sonarqube:9000/api/users/change_password
         echo "SonarQube administrator password configured."
 
+  sonar-scanner:
+    image: sonarsource/sonar-scanner-cli:latest
+    profiles:
+      - tools
+    environment:
+      SONAR_HOST_URL: http://sonarqube:9000
+      SONAR_TOKEN: "${SONAR_TOKEN:-}"
+    volumes:
+      - .:/usr/src
+    depends_on:
+      - sonarqube
+
   certgen:
     image: alpine:latest
     profiles:
