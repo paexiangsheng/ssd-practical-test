@@ -1,0 +1,96 @@
+services:
+  webserver:
+    image: nginx:alpine
+    container_name: practical-webserver
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+    depends_on:
+      - app
+
+  app:
+    build:
+      context: .
+    container_name: practical-search-app
+    restart: unless-stopped
+    environment:
+      PORT: "3000"
+      DB_HOST: database
+      DB_PORT: "3306"
+      DB_NAME: testdb
+      DB_USER: admin
+      DB_PASSWORD: "2400749@SIT.singaporetech.edu.sg"
+    depends_on:
+      database:
+        condition: service_healthy
+
+  database:
+    image: mysql:8.0
+    container_name: practical-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: "2400749@SIT.singaporetech.edu.sg"
+      MYSQL_DATABASE: testdb
+      MYSQL_USER: admin
+      MYSQL_PASSWORD: "2400749@SIT.singaporetech.edu.sg"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test:
+        - CMD
+        - mysqladmin
+        - ping
+        - -h
+        - localhost
+        - -u
+        - root
+        - "-p2400749@SIT.singaporetech.edu.sg"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  gitserver:
+    image: docker.gitea.com/gitea:latest
+    container_name: practical-git-server
+    restart: unless-stopped
+    environment:
+      USER_UID: "1000"
+      USER_GID: "1000"
+      GITEA__database__DB_TYPE: sqlite3
+      GITEA__server__DOMAIN: 127.0.0.1
+      GITEA__server__ROOT_URL: http://127.0.0.1:3000/
+      GITEA__server__SSH_DOMAIN: 127.0.0.1
+      GITEA__server__SSH_PORT: "2222"
+    ports:
+      - "3000:3000"
+      - "2222:22"
+    volumes:
+      - gitea_data:/data
+
+  certgen:
+    image: alpine:latest
+    profiles:
+      - tools
+    volumes:
+      - ./certs:/certs
+    entrypoint:
+      - /bin/sh
+      - -c
+    command: >
+      apk add --no-cache openssl &&
+      openssl req -x509 -nodes -newkey rsa:2048 -sha256 -days 365
+      -keyout /certs/server.key
+      -out /certs/server.crt
+      -config /certs/openssl.cnf
+      -extensions v3_req
+
+volumes:
+  mysql_data:
+    name: practicaltest_mysql_data
+  gitea_data:
+    name: practicaltest_gitea_data
