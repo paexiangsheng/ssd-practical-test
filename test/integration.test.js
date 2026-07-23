@@ -39,7 +39,7 @@ test('accepts a valid search and stores it with a query time', async () => {
   });
 
   assert.equal(response.status, 200);
-  assert.match(await response.text(), new RegExp(searchTerm));
+  assert.ok((await response.text()).includes(searchTerm));
 
   const [rows] = await database.execute(
     'SELECT search_query, query_time FROM `2400749` WHERE search_query = ?',
