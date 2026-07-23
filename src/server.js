@@ -65,7 +65,9 @@ async function startServer() {
   });
 }
 
-startServer().catch((error) => {
+try {
+  await startServer();
+} catch (error) {
   console.error('Unable to initialize the database:', error);
   process.exit(1);
-});
+}
