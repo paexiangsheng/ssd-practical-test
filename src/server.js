@@ -2,6 +2,7 @@ import express from 'express';
 import helmet from 'helmet';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { initializeDatabase, logValidatedSearch } from './database.js';
 import { escapeHtml, validateSearchTerm } from './validation.js';
 
 const app = express();
@@ -12,7 +13,7 @@ app.use(helmet());
 app.use(express.urlencoded({ extended: false, limit: '2kb' }));
 app.use(express.static(path.join(currentDirectory, '..', 'public')));
 
-app.post('/search', (request, response) => {
+app.post('/search', async (request, response) => {
   const validation = validateSearchTerm(request.body.searchTerm);
 
   if (!validation.valid) {
@@ -20,6 +21,7 @@ app.post('/search', (request, response) => {
     return;
   }
 
+  await logValidatedSearch(validation.value);
   const safeSearchTerm = escapeHtml(validation.value);
 
   response.type('html').send(`
@@ -48,6 +50,14 @@ app.use((error, request, response, next) => {
   response.status(400).redirect('/?invalid=1');
 });
 
-app.listen(port, '0.0.0.0', () => {
-  console.log(`Web application listening on port ${port}`);
+async function startServer() {
+  await initializeDatabase();
+  app.listen(port, '0.0.0.0', () => {
+    console.log(`Web application listening on port ${port}`);
+  });
+}
+
+startServer().catch((error) => {
+  console.error('Unable to initialize the database:', error);
+  process.exit(1);
 });
