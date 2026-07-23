@@ -78,16 +78,16 @@ services:
       - tools
     volumes:
       - ./certs:/certs
-    entrypoint:
+    command:
       - /bin/sh
       - -c
-    command: >
-      apk add --no-cache openssl &&
-      openssl req -x509 -nodes -newkey rsa:2048 -sha256 -days 365
-      -keyout /certs/server.key
-      -out /certs/server.crt
-      -config /certs/openssl.cnf
-      -extensions v3_req
+      - |
+        apk add --no-cache openssl &&
+        openssl req -x509 -nodes -newkey rsa:2048 -sha256 -days 365 \
+          -keyout /certs/server.key \
+          -out /certs/server.crt \
+          -config /certs/openssl.cnf \
+          -extensions v3_req
 
 volumes:
   mysql_data:
