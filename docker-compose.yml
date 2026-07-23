@@ -72,6 +72,78 @@ services:
     volumes:
       - gitea_data:/data
 
+  sonarqube:
+    image: sonarqube:community
+    container_name: practical-sonarqube
+    restart: unless-stopped
+    environment:
+      SONAR_JDBC_URL: jdbc:postgresql://sonardatabase:5432/sonarqube
+      SONAR_JDBC_USERNAME: sonar
+      SONAR_JDBC_PASSWORD: "2400749@SIT.singaporetech.edu.sg"
+    ports:
+      - "9000:9000"
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_extensions:/opt/sonarqube/extensions
+      - sonarqube_logs:/opt/sonarqube/logs
+    depends_on:
+      sonardatabase:
+        condition: service_healthy
+
+  sonardatabase:
+    image: postgres:16-alpine
+    container_name: practical-sonarqube-database
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: sonarqube
+      POSTGRES_USER: sonar
+      POSTGRES_PASSWORD: "2400749@SIT.singaporetech.edu.sg"
+    volumes:
+      - sonarqube_database:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U sonar -d sonarqube
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  sonarqube-init:
+    image: curlimages/curl:latest
+    container_name: practical-sonarqube-init
+    restart: "no"
+    environment:
+      SONAR_ADMIN_PASSWORD: "2400749@SIT.singaporetech.edu.sg"
+    depends_on:
+      - sonarqube
+    entrypoint:
+      - /bin/sh
+      - -c
+    command:
+      - |
+        until curl --fail --silent http://sonarqube:9000/api/system/status |
+          grep -q '"status":"UP"'; do
+          sleep 5
+        done
+
+        if curl --fail --silent \
+          --user "admin:$${SONAR_ADMIN_PASSWORD}" \
+          http://sonarqube:9000/api/authentication/validate |
+          grep -q '"valid":true'; then
+          echo "SonarQube administrator password is already configured."
+          exit 0
+        fi
+
+        curl --fail --silent --show-error \
+          --user admin:admin \
+          --request POST \
+          --data-urlencode "login=admin" \
+          --data-urlencode "previousPassword=admin" \
+          --data-urlencode "password=$${SONAR_ADMIN_PASSWORD}" \
+          http://sonarqube:9000/api/users/change_password
+        echo "SonarQube administrator password configured."
+
   certgen:
     image: alpine:latest
     profiles:
@@ -94,3 +166,11 @@ volumes:
     name: practicaltest_mysql_data
   gitea_data:
     name: practicaltest_gitea_data
+  sonarqube_data:
+    name: practicaltest_sonarqube_data
+  sonarqube_extensions:
+    name: practicaltest_sonarqube_extensions
+  sonarqube_logs:
+    name: practicaltest_sonarqube_logs
+  sonarqube_database:
+    name: practicaltest_sonarqube_database
