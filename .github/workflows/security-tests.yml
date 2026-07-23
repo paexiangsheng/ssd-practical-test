@@ -1,0 +1,180 @@
+name: Integration, Dependency and UI Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  integration-test:
+    name: HTTP integration test
+    runs-on: ubuntu-latest
+    services:
+      database:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: 2400749@SIT.singaporetech.edu.sg
+          MYSQL_DATABASE: testdb
+          MYSQL_USER: admin
+          MYSQL_PASSWORD: 2400749@SIT.singaporetech.edu.sg
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h localhost -u root -p2400749@SIT.singaporetech.edu.sg"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      APP_URL: http://127.0.0.1:3000
+      DB_HOST: 127.0.0.1
+      DB_PORT: "3306"
+      DB_NAME: testdb
+      DB_USER: admin
+      DB_PASSWORD: 2400749@SIT.singaporetech.edu.sg
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Start application over HTTP
+        run: |
+          node src/server.js > integration-app.log 2>&1 &
+          node scripts/wait-for-url.js "$APP_URL" 60000
+
+      - name: Run HTTP integration tests
+        run: npm run test:integration
+
+      - name: Upload application log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-application-log
+          path: integration-app.log
+
+  dependency-check:
+    name: Dependency check
+    runs-on: ubuntu-latest
+    env:
+      NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Create report directory
+        run: mkdir -p reports
+
+      - name: Run npm dependency audit
+        run: npm audit --audit-level=high --json > reports/npm-audit.json
+
+      - name: Run OWASP Dependency Check when an NVD key is configured
+        if: env.NVD_API_KEY != ''
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: ssd-practical-test
+          path: .
+          format: HTML
+          out: reports/dependency-check
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+
+      - name: Explain optional OWASP scan
+        if: env.NVD_API_KEY == ''
+        run: echo "NVD_API_KEY is not configured; npm audit completed the dependency check."
+
+      - name: Upload dependency reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-reports
+          path: reports
+
+  ui-test:
+    name: Selenium UI test over HTTP
+    runs-on: ubuntu-latest
+    services:
+      database:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: 2400749@SIT.singaporetech.edu.sg
+          MYSQL_DATABASE: testdb
+          MYSQL_USER: admin
+          MYSQL_PASSWORD: 2400749@SIT.singaporetech.edu.sg
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h localhost -u root -p2400749@SIT.singaporetech.edu.sg"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+      selenium:
+        image: selenium/standalone-chrome:latest
+        ports:
+          - 4444:4444
+        options: >-
+          --shm-size=2g
+          --add-host=host.docker.internal:host-gateway
+    env:
+      APP_URL: http://host.docker.internal:3000
+      SELENIUM_URL: http://127.0.0.1:4444/wd/hub
+      DB_HOST: 127.0.0.1
+      DB_PORT: "3306"
+      DB_NAME: testdb
+      DB_USER: admin
+      DB_PASSWORD: 2400749@SIT.singaporetech.edu.sg
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Start application over HTTP
+        run: |
+          node src/server.js > ui-app.log 2>&1 &
+          node scripts/wait-for-url.js "http://127.0.0.1:3000" 60000
+
+      - name: Wait for Selenium
+        run: node scripts/wait-for-url.js "$SELENIUM_URL/status" 60000
+
+      - name: Run Selenium UI tests
+        run: npm run test:ui
+
+      - name: Upload application log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-application-log
+          path: ui-app.log

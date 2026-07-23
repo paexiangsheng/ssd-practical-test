@@ -5,11 +5,16 @@
   "type": "module",
   "scripts": {
     "start": "node src/server.js",
-    "test": "node --test"
+    "test": "node --test test/validation.test.js",
+    "test:integration": "node --test test/integration.test.js",
+    "test:ui": "node test/ui.test.js"
   },
   "dependencies": {
     "express": "^5.2.1",
     "helmet": "^8.3.0",
     "mysql2": "^3.23.1"
+  },
+  "devDependencies": {
+    "selenium-webdriver": "^4.46.0"
   }
 }
