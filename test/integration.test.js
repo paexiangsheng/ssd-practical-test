@@ -16,6 +16,17 @@ test.after(async () => {
   await database.end();
 });
 
+test('keeps the application available over HTTP for UI testing', async () => {
+  const response = await fetch(`${applicationUrl}/`);
+
+  assert.equal(response.status, 200);
+  assert.doesNotMatch(
+    response.headers.get('content-security-policy') || '',
+    /upgrade-insecure-requests/,
+    'The browser must not upgrade the HTTP test URL to HTTPS'
+  );
+});
+
 test('accepts a valid search and stores it with a query time', async () => {
   const searchTerm = `integration-${Date.now()}`;
   const body = new URLSearchParams({ searchTerm });

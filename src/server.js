@@ -9,7 +9,15 @@ const app = express();
 const port = Number(process.env.PORT || 3000);
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
 
-app.use(helmet());
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        'upgrade-insecure-requests': null
+      }
+    }
+  })
+);
 app.use(express.urlencoded({ extended: false, limit: '2kb' }));
 app.use(express.static(path.join(currentDirectory, '..', 'public')));
 
